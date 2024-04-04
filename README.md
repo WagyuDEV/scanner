@@ -1,5 +1,5 @@
 # scanner
- Scan the internet
+ Scan the Internet
 
 ## Notes
 * Do not remove the rate limit, you will DoS yourself
