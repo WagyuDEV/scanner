@@ -1,4 +1,4 @@
-# THIS PROJECT IN NOT DONE
+# THIS PROJECT IS NOT DONE
 
 # scanner
  Scan the Internet
