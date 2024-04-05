@@ -1,64 +1,87 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
-
-	"golang.org/x/time/rate"
 )
 
-// ChatGPT helped with concurrent file writing and rate limiting
+var (
+	maxConcurrentRequest = 500
+	sem                  = make(chan int, maxConcurrentRequest)
+	wg                   sync.WaitGroup
+	mutex                sync.Mutex
+)
 
-var mutex sync.Mutex
-var wg sync.WaitGroup
-var limiter = rate.NewLimiter(rate.Every(time.Second), 100) // Limit to 100 requests per second
+func get(url string, file string, client *http.Client) {
+	sem <- runtime.NumGoroutine()
+	defer func() {
+		<-sem
+		wg.Done()
+	}()
 
-func get(url string, file string) {
-	defer wg.Done()
-	if err := limiter.Wait(context.Background()); err != nil {
-		fmt.Println("Rate limit exceeded. Waiting...")
-		time.Sleep(limiter.Reserve().Delay())
-	}
-	res, err := http.Get(url)
+	res, err := client.Get(url)
+
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
+	defer res.Body.Close()
+
 	resStr := url + ";" + strconv.Itoa(res.StatusCode) + "\n"
+
 	mutex.Lock()
 	defer mutex.Unlock()
+
 	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Println("Error opening file:", err)
+		fmt.Println("Error opening file", err)
 		return
 	}
 	defer f.Close()
+
 	_, err = f.WriteString(resStr)
 	if err != nil {
 		fmt.Println("Error writing to file:", err)
 	}
-	//fmt.Println(url, res.StatusCode)
 }
 
 func iter(start net.IP, stop net.IP) {
+	client := &http.Client{
+		Timeout: time.Second * 2,
+	}
+
 	b, e := big.Int{}, big.Int{}
 	b = *b.SetBytes(start.To4())
 	e = *e.SetBytes(stop.To4())
-	for b.Cmp(&e) <= 0 {
+
+	barr := make([]byte, 4)
+	b.FillBytes(barr)
+
+	for b.Cmp(&e) <= 0 { // x < y -> -1 | x == y -> 0 | x > y -> 1
+		for runtime.NumGoroutine() > 50000 {
+			time.Sleep(time.Duration(time.Second))
+		}
 		wg.Add(1)
-		go get("http://"+net.IP(b.Bytes()).String(), "scan.csv")
+		go get("http://"+net.IP(barr).String(), "scan.csv", client)
 		b.Add(&b, big.NewInt(1))
+		b.FillBytes(barr)
 	}
-	wg.Wait()
 }
 
 func main() {
-	// TODO: make this not crash when an ip less than 1.0.0.0 is presented
-	iter(net.IPv4(1, 0, 0, 0), net.IPv4(255, 255, 255, 255))
+	// TODO make it not error when an octet lower than 1 0 0 0 is presented
+	iter(net.IPv4(0, 0, 0, 0), net.IPv4(255, 255, 255, 255))
+	wg.Wait()
+	// b := big.NewInt(1)
+	// fmt.Println(b.Bytes())
+	// barr := make([]byte, 4)
+	// b.FillBytes(barr)
+	// fmt.Println(barr)
 }
