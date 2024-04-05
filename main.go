@@ -37,7 +37,7 @@ func get(url string, file string, client *http.Client) {
 
 	resStr := url + ";" + strconv.Itoa(res.StatusCode) + ";" + res.Request.URL.String() + "\n"
 
-	http.Post("https://discord.com/api/webhooks/1220197342888726609/WWaC8NndSGSe5rOTwmVPccrefg_rJIKirdcAVgwCM3aOtsUH0jqQeeQvikB_HkekRSqv", "application/json", strings.NewReader(`{"content" : "`+url+" | "+strconv.Itoa(res.StatusCode)+" | "+res.Request.URL.String()+`", "username" : "Internet Scanner"}`))
+	http.Post("YOUR WEB HOOK", "application/json", strings.NewReader(`{"content" : "`+url+" | "+strconv.Itoa(res.StatusCode)+" | "+res.Request.URL.String()+`", "username" : "Internet Scanner"}`))
 
 	mutex.Lock()
 	defer mutex.Unlock()
