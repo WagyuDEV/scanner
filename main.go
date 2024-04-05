@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -34,7 +35,9 @@ func get(url string, file string, client *http.Client) {
 	}
 	defer res.Body.Close()
 
-	resStr := url + ";" + strconv.Itoa(res.StatusCode) + "\n"
+	resStr := url + ";" + strconv.Itoa(res.StatusCode) + ";" + res.Request.URL.String() + "\n"
+
+	http.Post("https://discord.com/api/webhooks/1220197342888726609/WWaC8NndSGSe5rOTwmVPccrefg_rJIKirdcAVgwCM3aOtsUH0jqQeeQvikB_HkekRSqv", "application/json", strings.NewReader(`{"content" : "`+url+" | "+strconv.Itoa(res.StatusCode)+" | "+res.Request.URL.String()+`", "username" : "Internet Scanner"}`))
 
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -72,16 +75,13 @@ func iter(start net.IP, stop net.IP) {
 		go get("http://"+net.IP(barr).String(), "scan.csv", client)
 		b.Add(&b, big.NewInt(1))
 		b.FillBytes(barr)
+		// if big.NewInt(0).Mod(&b, big.NewInt(1000)).Cmp(big.NewInt(0)) == 0 {
+		// 	go fmt.Println(barr, b.String())
+		// }
 	}
 }
 
 func main() {
-	// TODO make it not error when an octet lower than 1 0 0 0 is presented
 	iter(net.IPv4(0, 0, 0, 0), net.IPv4(255, 255, 255, 255))
 	wg.Wait()
-	// b := big.NewInt(1)
-	// fmt.Println(b.Bytes())
-	// barr := make([]byte, 4)
-	// b.FillBytes(barr)
-	// fmt.Println(barr)
 }
