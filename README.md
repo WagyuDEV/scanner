@@ -3,6 +3,10 @@
 # Scanner
  Scan the Internet
 
+# Why
+There are two reasons for this project to exist. The first reason is my curiosity of how the internet is laid out and works; I want go get a large dataset of functional IP addresses to do more research on.
+The second reason is to practice Go, as this is my first Go project
+
 # Roadmap
 - [ ] [Rewrite](#Rewrite)
 - [ ] Turn into a CLI tool
@@ -22,10 +26,6 @@ split the request evenly between these routines. The manner in which actual requ
 - Use channels to make quasi-async/await
 - Idea #1 with the addition of persistent routines taking in new data through channels
 - [ChatGPT had an idea](#chatgpts-solution)
-
-# Why
-There are two reasons for this project to exist. The first reason is my curiosity of how the internet is laid out and works; I want go get a large dataset of functional IP addresses to do more research on.
-The second reason is to practice Go, as this is my first Go project
 
 # ChatGPT's Solution
 >ChatGPT: To handle a large range of IP addresses efficiently in Go, while ensuring that each goroutine does a similar amount of work, requests are made concurrently with a specified timeout, and no request is made twice, you can use a combination of channels, goroutines, and a sync mechanism. Here's a general outline of how you could structure your program:
