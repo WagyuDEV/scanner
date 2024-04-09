@@ -104,3 +104,4 @@ func main() {
     }
 }
 ```
+The above code is not to be copy/pasted into the project, it is merely inspiration
