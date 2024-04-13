@@ -5,59 +5,50 @@ import (
 	"math/big"
 	"net"
 	"net/http"
-	"os"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
+
+	"github.com/pbnjay/memory"
 )
 
 var (
-	maxConcurrentRequest = 500
-	sem                  = make(chan int, maxConcurrentRequest)
-	wg                   sync.WaitGroup
-	mutex                sync.Mutex
+	// 1 Goroutine costs 2 kB
+	numWorkers = memory.TotalMemory() / (8589934 / 2)
+	timeout    = time.Second * 2 // request timeout
+	wg         sync.WaitGroup
+	bufferSize = numWorkers + 100
+	//client     *http.Client
 )
 
-func get(url string, file string, client *http.Client) {
-	sem <- runtime.NumGoroutine()
-	defer func() {
-		<-sem
-		wg.Done()
-	}()
-
-	res, err := client.Get(url)
-
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer res.Body.Close()
-
-	resStr := url + ";" + strconv.Itoa(res.StatusCode) + ";" + res.Request.URL.String() + "\n"
-
-	//http.Post("YOUR WEB HOOK", "application/json", strings.NewReader(`{"content" : "`+url+" | "+strconv.Itoa(res.StatusCode)+" | "+res.Request.URL.String()+`", "username" : "Internet Scanner"}`))
-
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		fmt.Println("Error opening file", err)
-		return
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(resStr)
-	if err != nil {
-		fmt.Println("Error writing to file:", err)
+func get(id int, jobs <-chan string, clients []*http.Client) {
+	defer wg.Done()
+	for job := range jobs {
+		client := clients[id%len(clients)] // Assign each worker to a client
+		res, err := client.Get("https://" + job)
+		if err != nil {
+			//fmt.Printf("Error on job %d: %s\n", id, err)
+		} else {
+			fmt.Println(job, res.StatusCode)
+		}
+		//fmt.Println(id, runtime.NumGoroutine(), job)
 	}
 }
 
 func iter(start net.IP, stop net.IP) {
-	client := &http.Client{
-		Timeout: time.Second * 2,
+	tr := &http.Transport{
+		MaxIdleConns:        100,                  // Maximum idle connections to keep open
+		MaxIdleConnsPerHost: runtime.NumCPU() * 2, // Maximum idle connections per host
+		IdleConnTimeout:     5 * time.Second,      // Timeout for idle connections
+		// TLSHandshakeTimeout:   1 * time.Second,      // Timeout for TLS handshake
+		// ExpectContinueTimeout: 1 * time.Second,      // Timeout for waiting for a '100 Continue' response
 	}
+	clients := make([]*http.Client, runtime.NumCPU())
+	for i := range clients {
+		clients[i] = &http.Client{Timeout: timeout, Transport: tr}
+	}
+
+	jobs := make(chan string, bufferSize)
 
 	b, e := big.Int{}, big.Int{}
 	b = *b.SetBytes(start.To4())
@@ -66,21 +57,26 @@ func iter(start net.IP, stop net.IP) {
 	barr := make([]byte, 4)
 	b.FillBytes(barr)
 
-	for b.Cmp(&e) <= 0 { // x < y -> -1 | x == y -> 0 | x > y -> 1
-		for runtime.NumGoroutine() > 50000 {
-			time.Sleep(time.Duration(time.Second))
+	go func() {
+		for b.Cmp(&e) <= 0 { // x < y -> -1 | x == y -> 0 | x > y -> 1
+			select {
+			case jobs <- net.IP(barr).String():
+			default:
+				fmt.Println("FULLLLLLLLLL")
+			}
+
+			b.Add(&b, big.NewInt(1))
+			b.FillBytes(barr)
 		}
+		close(jobs)
+	}()
+	for id := 1; id <= int(numWorkers); id++ {
+		go get(id, jobs, clients)
 		wg.Add(1)
-		go get("http://"+net.IP(barr).String(), "scan.csv", client)
-		b.Add(&b, big.NewInt(1))
-		b.FillBytes(barr)
-		// if big.NewInt(0).Mod(&b, big.NewInt(1000)).Cmp(big.NewInt(0)) == 0 {
-		// 	go fmt.Println(barr, b.String())
-		// }
 	}
 }
 
 func main() {
-	iter(net.IPv4(0, 0, 0, 0), net.IPv4(255, 255, 255, 255))
+	iter(net.IPv4(1, 0, 0, 0), net.IPv4(255, 255, 255, 255))
 	wg.Wait()
 }
