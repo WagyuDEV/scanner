@@ -24,6 +24,8 @@ var (
 	bufferSize = numWorkers + 100
 	//client     *http.Client
 	//mutex sync.Mutex
+	t1 = time.Now()
+	t2 = time.Now()
 )
 
 func get(id int, jobs <-chan string, data chan string, clients []*http.Client, rl *rate.Limiter) {
@@ -36,7 +38,13 @@ func get(id int, jobs <-chan string, data chan string, clients []*http.Client, r
 		res, err := client.Get("https://" + job)
 
 		if err != nil {
-			fmt.Printf("Error on job %d: %s\n", id, err)
+			if id == 1 {
+				t2 = time.Now()
+				fmt.Println(t2.Unix() - t1.Unix())
+				t1 = time.Now()
+				fmt.Printf("Error on job %d: %s\n", id, err)
+			}
+			// fmt.Printf("Error on job %d: %s\n", id, err)
 		} else {
 			//fmt.Println(job, res.StatusCode)
 			resStr := job + ";" + strconv.Itoa(res.StatusCode) + ";" + res.Request.URL.String() + "\n"
@@ -78,7 +86,7 @@ func iter(start net.IP, stop net.IP) {
 	jobs := make(chan string, bufferSize)
 	data := make(chan string, bufferSize)
 
-	r := rate.NewLimiter(rate.Limit(800), 2000)
+	r := rate.NewLimiter(rate.Limit(1000), 2000)
 
 	b, e := big.Int{}, big.Int{}
 	b = *b.SetBytes(start.To4())
@@ -92,8 +100,10 @@ func iter(start net.IP, stop net.IP) {
 			// select {
 			// case jobs <- net.IP(barr).String():
 			// default:
-			// 	time.Sleep(time.Millisecond)
-			// 	//fmt.Println("FULLLLLLLLLL")
+			// 	//time.Sleep(r.Reserve().Delay())
+			// 	//fmt.Println(r.Reserve().Delay())
+			// 	fmt.Println("FULLLLLL")
+			// 	//continue
 			// }
 			jobs <- net.IP(barr).String()
 			b.Add(&b, big.NewInt(1))
@@ -112,6 +122,6 @@ func iter(start net.IP, stop net.IP) {
 
 func main() {
 	fmt.Println(numWorkers)
-	iter(net.IPv4(1, 1, 0, 0), net.IPv4(255, 255, 255, 255))
+	iter(net.IPv4(0, 0, 0, 0), net.IPv4(255, 255, 255, 255))
 	wg.Wait()
 }
